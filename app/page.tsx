@@ -174,7 +174,7 @@ export default function Home() {
             {formError && <ErrorAlert message={formError} />}
             {parqueaderosError && <ErrorAlert message={parqueaderosError} />}
 
-            <Field label="Nombre del visitante">
+            <Field label="Nombre del conductor">
               <input
                 type="text"
                 required
