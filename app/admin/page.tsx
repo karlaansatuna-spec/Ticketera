@@ -205,7 +205,7 @@ export default function AdminPage() {
             <thead className="bg-zinc-50 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">
               <tr>
                 <Th>Solicitante</Th>
-                <Th>Visitante</Th>
+                <Th>Conductor</Th>
                 <Th>Placa</Th>
                 <Th>Parqueadero</Th>
                 <Th>Día</Th>

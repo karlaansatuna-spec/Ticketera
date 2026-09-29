@@ -267,7 +267,7 @@ export default function Home() {
           <h2 className="mb-4 text-lg font-semibold">Reserva registrada</h2>
           <SuccessAlert message="Tu solicitud fue registrada correctamente. El administrador la revisará y enviará la solicitud formal." />
           <dl className="mb-6 divide-y divide-zinc-100 text-sm">
-            <SummaryRow label="Visitante" value={lastReservation.nombreVisitante} />
+            <SummaryRow label="Conductor" value={lastReservation.nombreVisitante} />
             <SummaryRow label="Placa" value={lastReservation.placa} />
             <SummaryRow label="Parqueadero" value={lastReservation.parqueadero} />
             <SummaryRow label="Día" value={lastReservation.dia} />
