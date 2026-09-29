@@ -77,18 +77,22 @@ function escapeHtml(value: string): string {
   });
 }
 
-function renderHtml(r: Reservation): string {
-  const rows: [string, string][] = [
+function reservationRows(r: Reservation): [string, string][] {
+  return [
+    ["Nombre del visitante", r.nombreVisitante],
+    ["Número de placa", r.placa],
     ["Parqueadero", r.parqueadero],
     ["Día de visita", r.dia],
     ["Hora de entrada", r.horaEntrada],
     ["Hora de salida", r.horaSalida],
     ["Duración estimada", `${r.duracionHoras} horas`],
-    ["Código de proveedor", r.codigoProveedor],
     ["Solicitado por", r.email],
     ["ID de solicitud", r.id],
   ];
-  const body = rows
+}
+
+function rowsToTable(rows: [string, string][]): string {
+  return rows
     .map(
       ([label, value]) =>
         `<tr><td style="padding:6px 12px;color:#555;">${escapeHtml(label)}</td><td style="padding:6px 12px;font-weight:600;">${escapeHtml(
@@ -96,14 +100,38 @@ function renderHtml(r: Reservation): string {
         )}</td></tr>`
     )
     .join("");
+}
+
+function renderHtml(r: Reservation): string {
   return `
   <div style="font-family: Arial, Helvetica, sans-serif; font-size:14px; color:#111;">
     <h2 style="margin-bottom:4px;">Solicitud de acceso a parqueadero</h2>
     <p style="color:#555;margin-top:0;">Se generó una nueva solicitud de visita en la ticketera.</p>
     <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:12px;">
-      ${body}
+      ${rowsToTable(reservationRows(r))}
     </table>
   </div>`;
+}
+
+function renderAdminNotificationHtml(r: Reservation): string {
+  return `
+  <div style="font-family: Arial, Helvetica, sans-serif; font-size:14px; color:#111;">
+    <h2 style="margin-bottom:4px;">Nueva reserva pendiente de revisión</h2>
+    <p style="color:#555;margin-top:0;">Alguien acaba de registrar una reserva en la ticketera. Revísala en el panel de administrador y presiona "Enviar solicitud" cuando corresponda.</p>
+    <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:12px;">
+      ${rowsToTable(reservationRows(r))}
+    </table>
+  </div>`;
+}
+
+// Correo(s) extra que siempre van en copia (además de quien reservó y/o del
+// administrador, según el correo). Se configuran con CC_EXTRA, separados por
+// coma si son varios.
+function getExtraCc(): string[] {
+  return (process.env.CC_EXTRA || "")
+    .split(",")
+    .map((e) => e.trim())
+    .filter(Boolean);
 }
 
 export async function sendReservationRequestEmail(reservation: Reservation) {
@@ -118,7 +146,9 @@ export async function sendReservationRequestEmail(reservation: Reservation) {
     throw new Error("Falta configurar EMAIL_FROM (o SMTP_USER) para saber desde qué correo enviar.");
   }
 
-  const cc = [reservation.email, adminEmail].filter((v): v is string => Boolean(v));
+  const cc = Array.from(
+    new Set([reservation.email, adminEmail, ...getExtraCc()].filter((v): v is string => Boolean(v)))
+  );
 
   const transporter = await getTransporter();
   try {
@@ -131,6 +161,11 @@ export async function sendReservationRequestEmail(reservation: Reservation) {
       html: renderHtml(reservation),
     });
   } catch (err) {
+    // El mensaje que ve el usuario en pantalla se simplifica más abajo, pero
+    // dejamos el detalle técnico completo en la consola del servidor (donde
+    // corre "npm run dev") para poder diagnosticar el problema real.
+    console.error("[email] Falló el envío de la solicitud:", err);
+
     const code = (err as { code?: string } | null)?.code;
     if (code === "ENETUNREACH" || code === "ETIMEDOUT" || code === "ESOCKET") {
       throw new Error(
@@ -144,4 +179,29 @@ export async function sendReservationRequestEmail(reservation: Reservation) {
     }
     throw err;
   }
+}
+
+// Aviso corto al administrador apenas se crea una reserva (no es la
+// "solicitud formal" que se envía manualmente con el botón del panel: es
+// solo para que se entere de que hay algo nuevo por revisar). Va a
+// ADMIN_EMAIL, y en copia a cualquier correo de CC_EXTRA.
+export async function sendAdminNotificationEmail(reservation: Reservation) {
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const from = process.env.EMAIL_FROM || process.env.SMTP_USER;
+
+  if (!adminEmail || !from) {
+    // Sin ADMIN_EMAIL configurado no hay a quién avisar; no es un error fatal.
+    return;
+  }
+
+  const cc = getExtraCc().filter((e) => e.toLowerCase() !== adminEmail.toLowerCase());
+
+  const transporter = await getTransporter();
+  await transporter.sendMail({
+    from,
+    to: adminEmail,
+    ...(cc.length ? { cc } : {}),
+    subject: `Nueva reserva - ${reservation.parqueadero} - ${reservation.dia}`,
+    html: renderAdminNotificationHtml(reservation),
+  });
 }

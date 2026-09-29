@@ -170,7 +170,7 @@ export default function AdminPage() {
 
   return (
     <div className="flex flex-1 flex-col items-center px-4 py-10">
-      <div className="w-full max-w-6xl">
+      <div className="w-full max-w-[1600px]">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-bold text-zinc-900">Solicitudes de visita</h1>
@@ -205,12 +205,13 @@ export default function AdminPage() {
             <thead className="bg-zinc-50 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">
               <tr>
                 <Th>Solicitante</Th>
+                <Th>Visitante</Th>
+                <Th>Placa</Th>
                 <Th>Parqueadero</Th>
                 <Th>Día</Th>
                 <Th>Entrada</Th>
                 <Th>Salida</Th>
                 <Th>Duración</Th>
-                <Th>Código proveedor</Th>
                 <Th>Estado</Th>
                 <Th>Acción</Th>
               </tr>
@@ -219,12 +220,13 @@ export default function AdminPage() {
               {reservas.map((r) => (
                 <tr key={r.id}>
                   <Td>{r.email}</Td>
+                  <Td>{r.nombreVisitante}</Td>
+                  <Td>{r.placa}</Td>
                   <Td>{r.parqueadero}</Td>
                   <Td>{r.dia}</Td>
                   <Td>{r.horaEntrada}</Td>
                   <Td>{r.horaSalida}</Td>
                   <Td>{formatDuration(Number(r.duracionHoras))}</Td>
-                  <Td>{r.codigoProveedor}</Td>
                   <Td>
                     <span
                       className={`rounded-full px-2 py-1 text-xs font-medium ${
@@ -250,7 +252,7 @@ export default function AdminPage() {
               ))}
               {!listLoading && reservas.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-sm text-zinc-400">
+                  <td colSpan={10} className="px-4 py-8 text-center text-sm text-zinc-400">
                     Todavía no hay solicitudes.
                   </td>
                 </tr>
@@ -264,9 +266,9 @@ export default function AdminPage() {
 }
 
 function Th({ children }: { children: React.ReactNode }) {
-  return <th className="px-4 py-3">{children}</th>;
+  return <th className="whitespace-nowrap px-3 py-3">{children}</th>;
 }
 
 function Td({ children }: { children: React.ReactNode }) {
-  return <td className="px-4 py-3 text-zinc-700">{children}</td>;
+  return <td className="whitespace-nowrap px-3 py-3 text-zinc-700">{children}</td>;
 }

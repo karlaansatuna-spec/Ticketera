@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Card, ErrorAlert, Field, PrimaryButton, SecondaryButton, SuccessAlert, inputClass } from "./components/ui";
 import { computeDurationHours, formatDuration, todayStr } from "@/lib/time";
+import { sanitizeVisitorNameInput } from "@/lib/validation";
 import type { Reservation } from "@/lib/types";
 
 type Step = "email" | "form" | "success";
@@ -16,11 +17,12 @@ export default function Home() {
   const [parqueaderos, setParqueaderos] = useState<string[]>([]);
   const [parqueaderosError, setParqueaderosError] = useState("");
 
+  const [nombreVisitante, setNombreVisitante] = useState("");
+  const [placa, setPlaca] = useState("");
   const [parqueadero, setParqueadero] = useState("");
   const [dia, setDia] = useState("");
   const [horaEntrada, setHoraEntrada] = useState("");
   const [horaSalida, setHoraSalida] = useState("");
-  const [codigoProveedor, setCodigoProveedor] = useState("");
 
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState("");
@@ -77,7 +79,7 @@ export default function Home() {
     e.preventDefault();
     setFormError("");
 
-    if (!parqueadero || !dia || !horaEntrada || !horaSalida || !codigoProveedor) {
+    if (!nombreVisitante || !placa || !parqueadero || !dia || !horaEntrada || !horaSalida) {
       setFormError("Completa todos los campos.");
       return;
     }
@@ -91,7 +93,7 @@ export default function Home() {
       const res = await fetch("/api/book", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, parqueadero, dia, horaEntrada, horaSalida, codigoProveedor }),
+        body: JSON.stringify({ email, nombreVisitante, placa, parqueadero, dia, horaEntrada, horaSalida }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -110,22 +112,24 @@ export default function Home() {
   function resetAll() {
     setStep("email");
     setEmail("");
+    setNombreVisitante("");
+    setPlaca("");
     setParqueadero("");
     setDia("");
     setHoraEntrada("");
     setHoraSalida("");
-    setCodigoProveedor("");
     setLastReservation(null);
     setFormError("");
   }
 
   function newBookingSameEmail() {
     setStep("form");
+    setNombreVisitante("");
+    setPlaca("");
     setParqueadero("");
     setDia("");
     setHoraEntrada("");
     setHoraSalida("");
-    setCodigoProveedor("");
     setLastReservation(null);
     setFormError("");
   }
@@ -169,6 +173,28 @@ export default function Home() {
           <form onSubmit={handleBookingSubmit}>
             {formError && <ErrorAlert message={formError} />}
             {parqueaderosError && <ErrorAlert message={parqueaderosError} />}
+
+            <Field label="Nombre del visitante">
+              <input
+                type="text"
+                required
+                className={inputClass}
+                value={nombreVisitante}
+                onChange={(e) => setNombreVisitante(sanitizeVisitorNameInput(e.target.value))}
+                placeholder="Ej. Juan Pérez"
+              />
+            </Field>
+
+            <Field label="Número de placa del vehículo">
+              <input
+                type="text"
+                required
+                className={inputClass}
+                value={placa}
+                onChange={(e) => setPlaca(e.target.value.toUpperCase())}
+                placeholder="Ej. ABC-1234"
+              />
+            </Field>
 
             <Field label="Parqueadero">
               <select
@@ -224,17 +250,6 @@ export default function Home() {
               <p className="-mt-2 mb-4 text-xs text-zinc-500">Duración estimada: {formatDuration(duracion)}</p>
             )}
 
-            <Field label="Código de proveedor">
-              <input
-                type="text"
-                required
-                className={inputClass}
-                value={codigoProveedor}
-                onChange={(e) => setCodigoProveedor(e.target.value)}
-                placeholder="Ej. PROV-001"
-              />
-            </Field>
-
             <PrimaryButton type="submit" disabled={formLoading}>
               {formLoading ? "Reservando..." : "Reservar"}
             </PrimaryButton>
@@ -252,12 +267,13 @@ export default function Home() {
           <h2 className="mb-4 text-lg font-semibold">Reserva registrada</h2>
           <SuccessAlert message="Tu solicitud fue registrada correctamente. El administrador la revisará y enviará la solicitud formal." />
           <dl className="mb-6 divide-y divide-zinc-100 text-sm">
+            <SummaryRow label="Visitante" value={lastReservation.nombreVisitante} />
+            <SummaryRow label="Placa" value={lastReservation.placa} />
             <SummaryRow label="Parqueadero" value={lastReservation.parqueadero} />
             <SummaryRow label="Día" value={lastReservation.dia} />
             <SummaryRow label="Hora de entrada" value={lastReservation.horaEntrada} />
             <SummaryRow label="Hora de salida" value={lastReservation.horaSalida} />
             <SummaryRow label="Duración" value={formatDuration(Number(lastReservation.duracionHoras))} />
-            <SummaryRow label="Código de proveedor" value={lastReservation.codigoProveedor} />
             <SummaryRow label="ID de solicitud" value={lastReservation.id} />
           </dl>
           <PrimaryButton onClick={newBookingSameEmail}>Hacer otra reserva</PrimaryButton>

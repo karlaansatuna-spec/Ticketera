@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { addReservation, getParkingLots, hasCapacityConflict, isEmailAllowed, isProviderCodeValid } from "@/lib/sheets";
+import { addReservation, getParkingLots, hasCapacityConflict, isEmailAllowed } from "@/lib/sheets";
+import { sendAdminNotificationEmail } from "@/lib/email";
 import { computeDurationHours, isValidDateStr, isValidTimeStr, todayStr } from "@/lib/time";
+import { isValidVisitorName } from "@/lib/validation";
 import type { NewReservationInput } from "@/lib/types";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -14,14 +16,27 @@ export async function POST(req: NextRequest) {
   }
 
   const email = (body.email || "").trim();
+  const nombreVisitante = (body.nombreVisitante || "").trim();
+  const placa = (body.placa || "").trim();
   const parqueadero = (body.parqueadero || "").trim();
   const dia = (body.dia || "").trim();
   const horaEntrada = (body.horaEntrada || "").trim();
   const horaSalida = (body.horaSalida || "").trim();
-  const codigoProveedor = (body.codigoProveedor || "").trim();
 
   if (!EMAIL_RE.test(email)) {
     return NextResponse.json({ error: "El correo electrónico no es válido." }, { status: 400 });
+  }
+  if (!nombreVisitante) {
+    return NextResponse.json({ error: "Ingresa el nombre del visitante." }, { status: 400 });
+  }
+  if (!isValidVisitorName(nombreVisitante)) {
+    return NextResponse.json(
+      { error: "El nombre del visitante solo puede contener letras y espacios (sin números)." },
+      { status: 400 }
+    );
+  }
+  if (!placa) {
+    return NextResponse.json({ error: "Ingresa el número de placa del vehículo." }, { status: 400 });
   }
   if (!isValidDateStr(dia)) {
     return NextResponse.json({ error: "Selecciona un día válido." }, { status: 400 });
@@ -41,25 +56,15 @@ export async function POST(req: NextRequest) {
   if (!parqueadero) {
     return NextResponse.json({ error: "Selecciona un parqueadero." }, { status: 400 });
   }
-  if (!codigoProveedor) {
-    return NextResponse.json({ error: "Ingresa el código de proveedor." }, { status: 400 });
-  }
 
   try {
-    const [emailOk, lots, codeOk] = await Promise.all([
-      isEmailAllowed(email),
-      getParkingLots(),
-      isProviderCodeValid(codigoProveedor),
-    ]);
+    const [emailOk, lots] = await Promise.all([isEmailAllowed(email), getParkingLots()]);
 
     if (!emailOk) {
       return NextResponse.json({ error: "Este correo no está autorizado para reservar." }, { status: 403 });
     }
     if (!lots.includes(parqueadero)) {
       return NextResponse.json({ error: "El parqueadero seleccionado no es válido." }, { status: 400 });
-    }
-    if (!codeOk) {
-      return NextResponse.json({ error: "El código de proveedor no es válido." }, { status: 400 });
     }
 
     const conflict = await hasCapacityConflict({ parqueadero, dia, horaEntrada, horaSalida });
@@ -79,13 +84,23 @@ export async function POST(req: NextRequest) {
 
     const reservation = await addReservation({
       email,
+      nombreVisitante,
+      placa,
       parqueadero,
       dia,
       horaEntrada,
       horaSalida,
       duracionHoras: String(duracionHoras),
-      codigoProveedor,
     });
+
+    // Aviso al administrador: es un "plus", no debe hacer fallar la reserva
+    // si el correo no se puede enviar en este momento (la reserva ya quedó
+    // guardada en la hoja de cálculo de todas formas).
+    try {
+      await sendAdminNotificationEmail(reservation);
+    } catch (err) {
+      console.error("[book] No se pudo enviar la notificación al administrador:", err);
+    }
 
     return NextResponse.json({ reservation }, { status: 201 });
   } catch (err) {

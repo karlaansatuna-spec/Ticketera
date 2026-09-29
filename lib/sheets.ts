@@ -6,7 +6,6 @@ import { timesOverlap } from "./time";
 const SHEET_TITLES = {
   reservas: "Reservas",
   emails: "EmailsPermitidos",
-  codigos: "CodigosProveedor",
   parqueaderos: "Parqueaderos",
 } as const;
 
@@ -70,19 +69,25 @@ function rowToReservation(row: GoogleSpreadsheetRow): Reservation {
     id: String(row.get("ID") || ""),
     creadoEn: String(row.get("CreadoEn") || ""),
     email: String(row.get("Email") || ""),
+    nombreVisitante: String(row.get("NombreVisitante") || ""),
+    placa: String(row.get("Placa") || ""),
     parqueadero: String(row.get("Parqueadero") || ""),
     dia: String(row.get("Dia") || ""),
     horaEntrada: String(row.get("HoraEntrada") || ""),
     horaSalida: String(row.get("HoraSalida") || ""),
     duracionHoras: String(row.get("DuracionHoras") || ""),
-    codigoProveedor: String(row.get("CodigoProveedor") || ""),
     estado: row.get("Estado") === "Enviado" ? "Enviado" : "Pendiente",
     enviadoEn: String(row.get("EnviadoEn") || ""),
   };
 }
 
 export async function getAllowedEmails(): Promise<string[]> {
-  const sheet = await getSheet(SHEET_TITLES.emails);
+  // La pestaña EmailsPermitidos es opcional: si solo usas ALLOWED_EMAIL_DOMAINS
+  // (acceso por dominio de correo) puedes borrarla sin problema. Si no existe,
+  // simplemente se considera una lista vacía en vez de dar error.
+  const doc = await getDoc();
+  const sheet = doc.sheetsByTitle[SHEET_TITLES.emails];
+  if (!sheet) return [];
   const rows = await sheet.getRows();
   return rows
     .map((r) => String(r.get("Email") || "").trim().toLowerCase())
@@ -112,23 +117,6 @@ export async function isEmailAllowed(email: string): Promise<boolean> {
   if (emailMatchesAllowedDomain(email)) return true;
   const list = await getAllowedEmails();
   return list.includes(email.trim().toLowerCase());
-}
-
-export async function getProviderCodes(): Promise<{ codigo: string; proveedor: string }[]> {
-  const sheet = await getSheet(SHEET_TITLES.codigos);
-  const rows = await sheet.getRows();
-  return rows
-    .map((r) => ({
-      codigo: String(r.get("Codigo") || "").trim(),
-      proveedor: String(r.get("Proveedor") || "").trim(),
-    }))
-    .filter((r) => r.codigo);
-}
-
-export async function isProviderCodeValid(code: string): Promise<boolean> {
-  const list = await getProviderCodes();
-  const norm = code.trim().toLowerCase();
-  return list.some((r) => r.codigo.toLowerCase() === norm);
 }
 
 export async function getParkingLots(): Promise<string[]> {
@@ -177,12 +165,13 @@ function generateId(): string {
 
 export async function addReservation(data: {
   email: string;
+  nombreVisitante: string;
+  placa: string;
   parqueadero: string;
   dia: string;
   horaEntrada: string;
   horaSalida: string;
   duracionHoras: string;
-  codigoProveedor: string;
 }): Promise<Reservation> {
   const sheet = await getSheet(SHEET_TITLES.reservas);
   const id = generateId();
@@ -191,12 +180,13 @@ export async function addReservation(data: {
     ID: id,
     CreadoEn: creadoEn,
     Email: data.email,
+    NombreVisitante: data.nombreVisitante,
+    Placa: data.placa,
     Parqueadero: data.parqueadero,
     Dia: data.dia,
     HoraEntrada: data.horaEntrada,
     HoraSalida: data.horaSalida,
     DuracionHoras: data.duracionHoras,
-    CodigoProveedor: data.codigoProveedor,
     Estado: "Pendiente",
     EnviadoEn: "",
   });
