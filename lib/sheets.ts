@@ -22,7 +22,24 @@ function getPrivateKey(): string {
   const raw = process.env.GOOGLE_PRIVATE_KEY || "";
   // En Vercel las variables de entorno no admiten saltos de línea reales,
   // así que la clave se guarda con "\n" literales y aquí se convierten.
-  return raw.includes("\\n") ? raw.replace(/\\n/g, "\n") : raw;
+  const key = raw.includes("\\n") ? raw.replace(/\\n/g, "\n") : raw;
+
+  // Chequeo básico de formato: si falta el encabezado/pie, o el cuerpo quedó
+  // muy corto, es casi siempre un problema de copiado (se pegó incompleta, o
+  // se cortó en un salto de línea real al pegarla en el .env). Mejor avisar
+  // claro acá que dejar que falle más adelante con un error críptico de
+  // OpenSSL ("DECODER routines::unsupported").
+  const looksComplete =
+    key.includes("BEGIN PRIVATE KEY") && key.includes("END PRIVATE KEY") && key.length > 200;
+  if (!looksComplete) {
+    throw new Error(
+      "GOOGLE_PRIVATE_KEY parece estar incompleta o mal copiada (falta el encabezado/pie, o el texto quedó muy corto). " +
+        "Vuelve a copiar el valor completo de \"private_key\" del archivo .json de la cuenta de servicio, " +
+        'entre comillas, en una sola línea, con los "\\n" tal como aparecen en el archivo (no como saltos de línea reales).'
+    );
+  }
+
+  return key;
 }
 
 function assertEnv() {
@@ -48,7 +65,18 @@ async function getDoc(): Promise<GoogleSpreadsheet> {
     scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   });
   const doc = new GoogleSpreadsheet(process.env.GOOGLE_SHEET_ID!, auth);
-  await doc.loadInfo();
+  try {
+    await doc.loadInfo();
+  } catch (err) {
+    const code = (err as { code?: string } | null)?.code;
+    if (code === "ERR_OSSL_UNSUPPORTED" || code === "ERR_OSSL_DECODER_UNSUPPORTED") {
+      throw new Error(
+        "GOOGLE_PRIVATE_KEY no tiene un formato válido (error de OpenSSL al leerla). Revisa que la copiaste completa " +
+          "desde el archivo .json de la cuenta de servicio, tal cual, sin editarla."
+      );
+    }
+    throw err;
+  }
   cachedDoc = doc;
   return doc;
 }
@@ -155,6 +183,33 @@ export async function hasCapacityConflict(params: {
     if (!horaEntrada || !horaSalida) return false;
     return timesOverlap(params.horaEntrada, params.horaSalida, horaEntrada, horaSalida);
   });
+}
+
+// Disponibilidad de cada parqueadero para un día/horario específico: se usa
+// para mostrarle al solicitante, antes de que elija parqueadero, cuáles están
+// libres y cuáles ya tienen una visita que se cruza con ese horario.
+export async function getParkingLotAvailability(params: {
+  dia: string;
+  horaEntrada: string;
+  horaSalida: string;
+}): Promise<{ parqueadero: string; disponible: boolean }[]> {
+  const [lots, sheet] = await Promise.all([getParkingLots(), getSheet(SHEET_TITLES.reservas)]);
+  const rows = await sheet.getRows();
+
+  const ocupados = new Set<string>();
+  for (const row of rows) {
+    const parqueadero = String(row.get("Parqueadero") || "");
+    if (!parqueadero || ocupados.has(parqueadero)) continue;
+    if (String(row.get("Dia") || "") !== params.dia) continue;
+    const horaEntrada = String(row.get("HoraEntrada") || "");
+    const horaSalida = String(row.get("HoraSalida") || "");
+    if (!horaEntrada || !horaSalida) continue;
+    if (timesOverlap(params.horaEntrada, params.horaSalida, horaEntrada, horaSalida)) {
+      ocupados.add(parqueadero);
+    }
+  }
+
+  return lots.map((parqueadero) => ({ parqueadero, disponible: !ocupados.has(parqueadero) }));
 }
 
 function generateId(): string {
