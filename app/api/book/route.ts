@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { addReservation, getParkingLots, hasCapacityConflict, isEmailAllowed } from "@/lib/sheets";
+import { addReservation, getParkingLots, getVehicleTypes, hasCapacityConflict, isEmailAllowed } from "@/lib/sheets";
 import { sendAdminNotificationEmail } from "@/lib/email";
 import { computeDurationHours, isValidDateStr, isValidTimeStr, todayStr } from "@/lib/time";
 import { isValidVisitorName } from "@/lib/validation";
@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
   const email = (body.email || "").trim();
   const nombreVisitante = (body.nombreVisitante || "").trim();
   const placa = (body.placa || "").trim();
+  const tipoVehiculo = (body.tipoVehiculo || "").trim();
   const parqueadero = (body.parqueadero || "").trim();
   const dia = (body.dia || "").trim();
   const horaEntrada = (body.horaEntrada || "").trim();
@@ -37,6 +38,9 @@ export async function POST(req: NextRequest) {
   }
   if (!placa) {
     return NextResponse.json({ error: "Ingresa el número de placa del vehículo." }, { status: 400 });
+  }
+  if (!tipoVehiculo) {
+    return NextResponse.json({ error: "Selecciona el tipo de vehículo." }, { status: 400 });
   }
   if (!isValidDateStr(dia)) {
     return NextResponse.json({ error: "Selecciona un día válido." }, { status: 400 });
@@ -58,13 +62,16 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const [emailOk, lots] = await Promise.all([isEmailAllowed(email), getParkingLots()]);
+    const [emailOk, lots, tipos] = await Promise.all([isEmailAllowed(email), getParkingLots(), getVehicleTypes()]);
 
     if (!emailOk) {
       return NextResponse.json({ error: "Este correo no está autorizado para reservar." }, { status: 403 });
     }
     if (!lots.includes(parqueadero)) {
       return NextResponse.json({ error: "El parqueadero seleccionado no es válido." }, { status: 400 });
+    }
+    if (!tipos.includes(tipoVehiculo)) {
+      return NextResponse.json({ error: "El tipo de vehículo seleccionado no es válido." }, { status: 400 });
     }
 
     const conflict = await hasCapacityConflict({ parqueadero, dia, horaEntrada, horaSalida });
@@ -86,6 +93,7 @@ export async function POST(req: NextRequest) {
       email,
       nombreVisitante,
       placa,
+      tipoVehiculo,
       parqueadero,
       dia,
       horaEntrada,

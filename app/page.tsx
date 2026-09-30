@@ -17,6 +17,7 @@ export default function Home() {
 
   const [nombreVisitante, setNombreVisitante] = useState("");
   const [placa, setPlaca] = useState("");
+  const [tipoVehiculo, setTipoVehiculo] = useState("");
   const [parqueadero, setParqueadero] = useState("");
   const [dia, setDia] = useState("");
   const [horaEntrada, setHoraEntrada] = useState("");
@@ -39,9 +40,35 @@ export default function Home() {
     message: string;
   } | null>(null);
 
+  const [tiposVehiculo, setTiposVehiculo] = useState<string[]>([]);
+  const [tiposVehiculoError, setTiposVehiculoError] = useState("");
+
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState("");
   const [lastReservation, setLastReservation] = useState<Reservation | null>(null);
+
+  // Lista de tipos de vehículo (se lee de la hoja "TiposVehiculo", igual que
+  // los parqueaderos): se carga una sola vez al entrar al formulario.
+  useEffect(() => {
+    if (step !== "form" || tiposVehiculo.length) return;
+    let cancelled = false;
+    fetch("/api/tipos-vehiculo")
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (data.error) {
+          setTiposVehiculoError(data.error);
+        } else {
+          setTiposVehiculo(data.tipos || []);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setTiposVehiculoError("No se pudo cargar la lista de tipos de vehículo.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [step, tiposVehiculo.length]);
 
   const horarioCompleto =
     !!dia && !!horaEntrada && !!horaSalida && horaSalida > horaEntrada;
@@ -132,7 +159,7 @@ export default function Home() {
     e.preventDefault();
     setFormError("");
 
-    if (!nombreVisitante || !placa || !parqueadero || !dia || !horaEntrada || !horaSalida) {
+    if (!nombreVisitante || !placa || !tipoVehiculo || !parqueadero || !dia || !horaEntrada || !horaSalida) {
       setFormError("Completa todos los campos y elige un parqueadero disponible.");
       return;
     }
@@ -146,7 +173,16 @@ export default function Home() {
       const res = await fetch("/api/book", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, nombreVisitante, placa, parqueadero, dia, horaEntrada, horaSalida }),
+        body: JSON.stringify({
+          email,
+          nombreVisitante,
+          placa,
+          tipoVehiculo,
+          parqueadero,
+          dia,
+          horaEntrada,
+          horaSalida,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -167,6 +203,7 @@ export default function Home() {
     setEmail("");
     setNombreVisitante("");
     setPlaca("");
+    setTipoVehiculo("");
     setParqueadero("");
     setDia("");
     setHoraEntrada("");
@@ -181,6 +218,7 @@ export default function Home() {
     setStep("form");
     setNombreVisitante("");
     setPlaca("");
+    setTipoVehiculo("");
     setParqueadero("");
     setDia("");
     setHoraEntrada("");
@@ -229,6 +267,7 @@ export default function Home() {
           <p className="mb-4 text-sm text-zinc-500">{email}</p>
           <form onSubmit={handleBookingSubmit}>
             {formError && <ErrorAlert message={formError} />}
+            {tiposVehiculoError && <ErrorAlert message={tiposVehiculoError} />}
 
             <Field label="Nombre del visitante">
               <input
@@ -250,6 +289,24 @@ export default function Home() {
                 onChange={(e) => setPlaca(e.target.value.toUpperCase())}
                 placeholder="Ej. ABC-1234"
               />
+            </Field>
+
+            <Field label="Tipo de vehículo">
+              <select
+                required
+                className={inputClass}
+                value={tipoVehiculo}
+                onChange={(e) => setTipoVehiculo(e.target.value)}
+              >
+                <option value="" disabled>
+                  Selecciona el tipo de vehículo
+                </option>
+                {tiposVehiculo.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
             </Field>
 
             <Field label="Día de la visita">
@@ -347,7 +404,7 @@ export default function Home() {
               )}
             </div>
 
-            <PrimaryButton type="submit" disabled={formLoading || !parqueadero}>
+            <PrimaryButton type="submit" disabled={formLoading || !tipoVehiculo || !parqueadero}>
               {formLoading ? "Reservando..." : "Reservar"}
             </PrimaryButton>
             <div className="mt-3">
@@ -366,6 +423,7 @@ export default function Home() {
           <dl className="mb-6 divide-y divide-zinc-100 text-sm">
             <SummaryRow label="Visitante" value={lastReservation.nombreVisitante} />
             <SummaryRow label="Placa" value={lastReservation.placa} />
+            <SummaryRow label="Tipo de vehículo" value={lastReservation.tipoVehiculo} />
             <SummaryRow label="Parqueadero" value={lastReservation.parqueadero} />
             <SummaryRow label="Día" value={lastReservation.dia} />
             <SummaryRow label="Hora de entrada" value={lastReservation.horaEntrada} />

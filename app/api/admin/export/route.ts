@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
       { header: "Email", key: "email", width: 28 },
       { header: "Nombre visitante", key: "nombreVisitante", width: 24 },
       { header: "Placa", key: "placa", width: 14 },
+      { header: "Tipo de vehículo", key: "tipoVehiculo", width: 16 },
       { header: "Parqueadero", key: "parqueadero", width: 16 },
       { header: "Día", key: "dia", width: 12 },
       { header: "Hora entrada", key: "horaEntrada", width: 14 },

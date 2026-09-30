@@ -6,6 +6,7 @@ export type Reservation = {
   email: string;
   nombreVisitante: string;
   placa: string;
+  tipoVehiculo: string;
   parqueadero: string;
   dia: string; // YYYY-MM-DD
   horaEntrada: string; // HH:MM
@@ -19,6 +20,7 @@ export type NewReservationInput = {
   email: string;
   nombreVisitante: string;
   placa: string;
+  tipoVehiculo: string;
   parqueadero: string;
   dia: string;
   horaEntrada: string;

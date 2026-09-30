@@ -81,6 +81,7 @@ function reservationRows(r: Reservation): [string, string][] {
   return [
     ["Nombre del visitante", r.nombreVisitante],
     ["Número de placa", r.placa],
+    ["Tipo de vehículo", r.tipoVehiculo],
     ["Parqueadero", r.parqueadero],
     ["Día de visita", r.dia],
     ["Hora de entrada", r.horaEntrada],

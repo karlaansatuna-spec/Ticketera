@@ -205,8 +205,9 @@ export default function AdminPage() {
             <thead className="bg-zinc-50 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">
               <tr>
                 <Th>Solicitante</Th>
-                <Th>Conductor</Th>
+                <Th>Visitante</Th>
                 <Th>Placa</Th>
+                <Th>Tipo</Th>
                 <Th>Parqueadero</Th>
                 <Th>Día</Th>
                 <Th>Entrada</Th>
@@ -222,6 +223,7 @@ export default function AdminPage() {
                   <Td>{r.email}</Td>
                   <Td>{r.nombreVisitante}</Td>
                   <Td>{r.placa}</Td>
+                  <Td>{r.tipoVehiculo}</Td>
                   <Td>{r.parqueadero}</Td>
                   <Td>{r.dia}</Td>
                   <Td>{r.horaEntrada}</Td>
@@ -252,7 +254,7 @@ export default function AdminPage() {
               ))}
               {!listLoading && reservas.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-sm text-zinc-400">
+                  <td colSpan={11} className="px-4 py-8 text-center text-sm text-zinc-400">
                     Todavía no hay solicitudes.
                   </td>
                 </tr>

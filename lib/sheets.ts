@@ -7,6 +7,7 @@ const SHEET_TITLES = {
   reservas: "Reservas",
   emails: "EmailsPermitidos",
   parqueaderos: "Parqueaderos",
+  tiposVehiculo: "TiposVehiculo",
 } as const;
 
 const DEFAULT_PARKING_LOTS = [
@@ -17,6 +18,8 @@ const DEFAULT_PARKING_LOTS = [
   "Parqueadero 5",
   "Parqueadero 6",
 ];
+
+const DEFAULT_VEHICLE_TYPES = ["Automóvil", "Camión", "Camioneta"];
 
 function getPrivateKey(): string {
   const raw = process.env.GOOGLE_PRIVATE_KEY || "";
@@ -99,6 +102,7 @@ function rowToReservation(row: GoogleSpreadsheetRow): Reservation {
     email: String(row.get("Email") || ""),
     nombreVisitante: String(row.get("NombreVisitante") || ""),
     placa: String(row.get("Placa") || ""),
+    tipoVehiculo: String(row.get("TipoVehiculo") || ""),
     parqueadero: String(row.get("Parqueadero") || ""),
     dia: String(row.get("Dia") || ""),
     horaEntrada: String(row.get("HoraEntrada") || ""),
@@ -152,6 +156,17 @@ export async function getParkingLots(): Promise<string[]> {
   const rows = await sheet.getRows();
   const names = rows.map((r) => String(r.get("Nombre") || "").trim()).filter(Boolean);
   return names.length ? names : DEFAULT_PARKING_LOTS;
+}
+
+// La pestaña TiposVehiculo es opcional: si no existe (ej. hojas creadas antes
+// de este cambio), se usa una lista por defecto en vez de dar error.
+export async function getVehicleTypes(): Promise<string[]> {
+  const doc = await getDoc();
+  const sheet = doc.sheetsByTitle[SHEET_TITLES.tiposVehiculo];
+  if (!sheet) return DEFAULT_VEHICLE_TYPES;
+  const rows = await sheet.getRows();
+  const names = rows.map((r) => String(r.get("Nombre") || "").trim()).filter(Boolean);
+  return names.length ? names : DEFAULT_VEHICLE_TYPES;
 }
 
 export async function getReservations(): Promise<Reservation[]> {
@@ -222,6 +237,7 @@ export async function addReservation(data: {
   email: string;
   nombreVisitante: string;
   placa: string;
+  tipoVehiculo: string;
   parqueadero: string;
   dia: string;
   horaEntrada: string;
@@ -237,6 +253,7 @@ export async function addReservation(data: {
     Email: data.email,
     NombreVisitante: data.nombreVisitante,
     Placa: data.placa,
+    TipoVehiculo: data.tipoVehiculo,
     Parqueadero: data.parqueadero,
     Dia: data.dia,
     HoraEntrada: data.horaEntrada,
