@@ -1,4 +1,4 @@
-export type EstadoReserva = "Pendiente" | "Enviado";
+export type EstadoReserva = "Pendiente" | "Enviado" | "Rechazado";
 
 export type Reservation = {
   id: string;

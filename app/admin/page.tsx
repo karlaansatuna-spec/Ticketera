@@ -18,6 +18,7 @@ export default function AdminPage() {
   const [listLoading, setListLoading] = useState(true);
 
   const [sendingId, setSendingId] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rowMessages, setRowMessages] = useState<Record<string, string>>({});
 
   // Usada por acciones del usuario (botón "Actualizar", tras iniciar/cerrar sesión).
@@ -137,6 +138,34 @@ export default function AdminPage() {
     }
   }
 
+  async function handleReject(id: string) {
+    setRejectingId(id);
+    setRowMessages((prev) => ({ ...prev, [id]: "" }));
+    try {
+      const res = await fetch("/api/admin/reject", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setRowMessages((prev) => ({ ...prev, [id]: data.error || "No se pudo rechazar." }));
+        return;
+      }
+      if (data.reservation) {
+        setReservas((prev) => prev.map((r) => (r.id === id ? data.reservation : r)));
+      }
+      setRowMessages((prev) => ({
+        ...prev,
+        [id]: data.alreadyRejected ? "Ya estaba rechazada." : "Solicitud rechazada. El espacio quedó libre.",
+      }));
+    } catch {
+      setRowMessages((prev) => ({ ...prev, [id]: "No se pudo rechazar." }));
+    } finally {
+      setRejectingId(null);
+    }
+  }
+
   if (!authChecked) {
     return (
       <div className="flex flex-1 items-center justify-center px-4 py-12 text-sm text-zinc-500">Cargando...</div>
@@ -232,7 +261,11 @@ export default function AdminPage() {
                   <Td>
                     <span
                       className={`rounded-full px-2 py-1 text-xs font-medium ${
-                        r.estado === "Enviado" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+                        r.estado === "Enviado"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : r.estado === "Rechazado"
+                            ? "bg-red-100 text-red-700"
+                            : "bg-amber-100 text-amber-700"
                       }`}
                     >
                       {r.estado}
@@ -240,13 +273,22 @@ export default function AdminPage() {
                   </Td>
                   <Td>
                     <div className="flex flex-col gap-1">
-                      <button
-                        onClick={() => handleSend(r.id)}
-                        disabled={r.estado === "Enviado" || sendingId === r.id}
-                        className="whitespace-nowrap rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:bg-zinc-300"
-                      >
-                        {sendingId === r.id ? "Enviando..." : r.estado === "Enviado" ? "Enviado" : "Enviar solicitud"}
-                      </button>
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => handleSend(r.id)}
+                          disabled={r.estado !== "Pendiente" || sendingId === r.id || rejectingId === r.id}
+                          className="whitespace-nowrap rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:bg-zinc-300"
+                        >
+                          {sendingId === r.id ? "Enviando..." : r.estado === "Enviado" ? "Enviado" : "Enviar solicitud"}
+                        </button>
+                        <button
+                          onClick={() => handleReject(r.id)}
+                          disabled={r.estado !== "Pendiente" || sendingId === r.id || rejectingId === r.id}
+                          className="whitespace-nowrap rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-300"
+                        >
+                          {rejectingId === r.id ? "Rechazando..." : r.estado === "Rechazado" ? "Rechazado" : "Rechazar"}
+                        </button>
+                      </div>
                       {rowMessages[r.id] && <span className="text-xs text-zinc-500">{rowMessages[r.id]}</span>}
                     </div>
                   </Td>

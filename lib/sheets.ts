@@ -108,7 +108,8 @@ function rowToReservation(row: GoogleSpreadsheetRow): Reservation {
     horaEntrada: String(row.get("HoraEntrada") || ""),
     horaSalida: String(row.get("HoraSalida") || ""),
     duracionHoras: String(row.get("DuracionHoras") || ""),
-    estado: row.get("Estado") === "Enviado" ? "Enviado" : "Pendiente",
+    estado:
+      row.get("Estado") === "Enviado" ? "Enviado" : row.get("Estado") === "Rechazado" ? "Rechazado" : "Pendiente",
     enviadoEn: String(row.get("EnviadoEn") || ""),
   };
 }
@@ -191,6 +192,8 @@ export async function hasCapacityConflict(params: {
   const sheet = await getSheet(SHEET_TITLES.reservas);
   const rows = await sheet.getRows();
   return rows.some((r) => {
+    // Las solicitudes rechazadas liberan el espacio: no cuentan como conflicto.
+    if (String(r.get("Estado") || "") === "Rechazado") return false;
     if (String(r.get("Parqueadero") || "") !== params.parqueadero) return false;
     if (String(r.get("Dia") || "") !== params.dia) return false;
     const horaEntrada = String(r.get("HoraEntrada") || "");
@@ -213,6 +216,8 @@ export async function getParkingLotAvailability(params: {
 
   const ocupados = new Set<string>();
   for (const row of rows) {
+    // Las solicitudes rechazadas liberan el espacio: no cuentan como ocupado.
+    if (String(row.get("Estado") || "") === "Rechazado") continue;
     const parqueadero = String(row.get("Parqueadero") || "");
     if (!parqueadero || ocupados.has(parqueadero)) continue;
     if (String(row.get("Dia") || "") !== params.dia) continue;
@@ -285,4 +290,26 @@ export async function markReservationSent(id: string): Promise<{ reservation: Re
   row.set("EnviadoEn", new Date().toISOString());
   await row.save();
   return { reservation: rowToReservation(row), alreadySent: false };
+}
+
+// Rechaza una solicitud: libera el espacio que tenía reservado (ver
+// hasCapacityConflict y getParkingLotAvailability, que ignoran las filas en
+// estado "Rechazado"). No se puede rechazar una solicitud que ya fue enviada
+// por correo al administrador del parqueadero.
+export async function rejectReservation(
+  id: string
+): Promise<{ reservation: Reservation; alreadyRejected: boolean } | null> {
+  const sheet = await getSheet(SHEET_TITLES.reservas);
+  const rows = await sheet.getRows();
+  const row = rows.find((r) => String(r.get("ID")) === id);
+  if (!row) return null;
+  if (row.get("Estado") === "Rechazado") {
+    return { reservation: rowToReservation(row), alreadyRejected: true };
+  }
+  if (row.get("Estado") === "Enviado") {
+    throw new Error("Esta solicitud ya fue enviada por correo y no se puede rechazar.");
+  }
+  row.set("Estado", "Rechazado");
+  await row.save();
+  return { reservation: rowToReservation(row), alreadyRejected: false };
 }
